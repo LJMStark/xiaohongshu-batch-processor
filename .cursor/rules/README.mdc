@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+description: Cursor规则总览和使用指南
+---
+
+# Cursor规则总览
+
+本项目为小红书内容批量处理程序配置了完整的Cursor规则集，帮助AI更好地理解和维护代码库。
+
+## 规则文件列表
+
+### 🏗️ 项目架构
+- [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc) - 项目结构和架构指南
+- [dependencies.mdc](mdc:.cursor/rules/dependencies.mdc) - 依赖管理和环境配置
+
+### 💻 代码规范  
+- [python-standards.mdc](mdc:.cursor/rules/python-standards.mdc) - Python编码规范和最佳实践
+
+### 🤖 AI内容处理
+- [ai-content-generation.mdc](mdc:.cursor/rules/ai-content-generation.mdc) - AI内容生成和小红书风格处理
+- [api-integration.mdc](mdc:.cursor/rules/api-integration.mdc) - API集成和错误处理
+
+### 🖼️ 图像处理
+- [image-processing.mdc](mdc:.cursor/rules/image-processing.mdc) - 图像处理和批量操作规则
+
+### 📁 文件管理
+- [file-formats.mdc](mdc:.cursor/rules/file-formats.mdc) - 文件格式和文档处理规则
+
+## 快速参考
+
+### 主要功能模块
+1. **批量处理程序** - [batch_processor.py](mdc:batch_processor.py)
+2. **图像处理** - [改图片.py](mdc:改图片.py) 
+3. **API集成** - [openrouter.py](mdc:openrouter.py)
+4. **内容模板** - [小红书改写.txt](mdc:小红书改写.txt), [小红书咪蒙标题生成.txt](mdc:小红书咪蒙标题生成.txt)
+
+### 核心处理流程
+```
+输入文件夹 → 图像处理 → 内容改写 → 标题生成 → 输出文件夹
+    ↓           ↓          ↓         ↓         ↓
+  扫描文件   应用滤镜    AI改写    咪蒙标题   保存结果
+            裁剪边框    小红书风格  生成算法
+```
+
+### 关键配置
+- **环境变量**: `.env` 文件配置 `OPENROUTER_API_KEY`
+- **图像处理**: natural滤镜 + 19/20裁剪 + 白色边框
+- **API模型**: `deepseek/deepseek-r1-0528:free`
+- **输出格式**: JPEG图片 + Markdown文档
+
+## 使用建议
+
+1. **新功能开发**: 参考对应的规则文件了解最佳实践
+2. **错误调试**: 查看API集成和错误处理规则
+3. **代码维护**: 遵循Python编码规范
+4. **扩展功能**: 基于现有架构进行模块化开发
+
+这些规则将帮助AI更好地理解项目需求，生成符合规范的代码，并提供一致的开发体验。

@@ -1,0 +1,101 @@
+---
+globs: *.py
+description: Python代码规范和最佳实践
+---
+
+# Python编码规范
+
+## 代码风格
+
+- 遵循PEP 8编码规范
+- 使用4个空格缩进，不使用Tab
+- 行长度限制在88字符以内（Black格式化标准）
+- 函数和变量名使用snake_case
+- 类名使用PascalCase
+- 常量使用UPPER_CASE
+
+## 导入规范
+
+```python
+# 标准库导入
+import os
+import sys
+from typing import List, Dict, Optional
+
+# 第三方库导入
+import cv2
+import numpy as np
+import requests
+from openai import OpenAI
+
+# 本地模块导入
+from .utils import helper_function
+```
+
+## 错误处理
+
+- 使用具体的异常类型而不是裸露的except
+- 提供有意义的错误信息
+- 对于文件操作、网络请求、API调用必须添加异常处理
+- 实现重试机制（最多3次）
+
+```python
+def process_with_retry(func, max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise
+            print(f"尝试 {attempt + 1} 失败: {e}")
+```
+
+## 函数设计
+
+- 函数应该单一职责
+- 使用类型注解
+- 添加详细的docstring
+- 参数验证
+
+```python
+def apply_filter(image: np.ndarray, filter_type: str = "natural") -> np.ndarray:
+    """应用图像滤镜
+    
+    Args:
+        image: 输入图像数组
+        filter_type: 滤镜类型，支持 "natural", "warm", "cool" 等
+        
+    Returns:
+        处理后的图像数组
+        
+    Raises:
+        ValueError: 不支持的滤镜类型
+    """
+```
+
+## 文件操作
+
+- 使用pathlib而不是os.path（新代码）
+- 确保文件路径的跨平台兼容性
+- 使用上下文管理器处理文件
+- 处理中文文件名编码问题
+
+```python
+from pathlib import Path
+
+def read_file_safely(file_path: Path) -> str:
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return f.read()
+```
+
+## 日志和调试
+
+- 使用print()进行简单调试输出
+- 对关键操作添加进度提示
+- 错误信息要包含足够的上下文
+
+## 性能考虑
+
+- 批量操作时使用生成器而不是列表
+- 大文件处理时注意内存使用
+- 图像处理使用OpenCV的高效方法

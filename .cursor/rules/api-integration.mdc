@@ -1,0 +1,237 @@
+---
+description: API集成和错误处理规则
+---
+
+# API集成和错误处理规则
+
+## OpenRouter API集成
+
+基于[openrouter.py](mdc:openrouter.py)的API集成规范。
+
+### 基础配置
+
+```python
+from openai import OpenAI
+import os
+from dotenv import load_dotenv
+
+# 加载环境变量
+load_dotenv()
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
+```
+
+### 推荐模型
+
+- `deepseek/deepseek-r1-0528:free` - 免费模型，适合开发测试
+- `anthropic/claude-3.5-sonnet` - 高质量内容生成
+- `openai/gpt-4o` - 综合性能优秀
+- `google/gemini-pro-1.5` - 长文本处理
+
+### 请求配置
+
+```python
+completion = client.chat.completions.create(
+    extra_headers={
+        "HTTP-Referer": "https://your-site.com",  # 可选，用于排名
+        "X-Title": "小红书内容处理工具",           # 可选，站点标题
+    },
+    model="deepseek/deepseek-r1-0528:free",
+    messages=[
+        {
+            "role": "system", 
+            "content": "系统提示词"
+        },
+        {
+            "role": "user",
+            "content": "用户输入内容"
+        }
+    ],
+    temperature=0.7,        # 创意性控制
+    max_tokens=2000,        # 最大输出长度
+    top_p=0.9,             # 采样控制
+)
+```
+
+## 错误处理和重试机制
+
+### 通用错误处理
+
+```python
+import time
+import random
+from typing import Optional, Callable, Any
+
+def api_call_with_retry(
+    api_func: Callable,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 60.0
+) -> Optional[Any]:
+    """
+    带重试机制的API调用
+    
+    Args:
+        api_func: API调用函数
+        max_retries: 最大重试次数
+        base_delay: 基础延迟时间（秒）
+        max_delay: 最大延迟时间（秒）
+    
+    Returns:
+        API响应结果，失败时返回None
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return api_func()
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"API调用最终失败: {e}")
+                return None
+            
+            # 指数退避 + 随机抖动
+            delay = min(base_delay * (2 ** attempt), max_delay)
+            jitter = random.uniform(0, delay * 0.1)
+            sleep_time = delay + jitter
+            
+            print(f"API调用失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
+            print(f"等待 {sleep_time:.2f} 秒后重试...")
+            time.sleep(sleep_time)
+    
+    return None
+```
+
+### 具体错误类型处理
+
+```python
+from openai import OpenAI, APIError, RateLimitError, APIConnectionError
+
+def handle_api_errors(func):
+    """API错误处理装饰器"""
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except RateLimitError as e:
+            print(f"API速率限制: {e}")
+            print("建议等待一段时间后重试")
+            return None
+        except APIConnectionError as e:
+            print(f"API连接错误: {e}")
+            print("检查网络连接和API端点")
+            return None
+        except APIError as e:
+            print(f"API错误: {e}")
+            return None
+        except Exception as e:
+            print(f"未知错误: {e}")
+            return None
+    return wrapper
+```
+
+## 内容生成专用函数
+
+### 小红书内容改写
+
+```python
+@handle_api_errors
+def rewrite_content(original_content: str, client: OpenAI) -> Optional[str]:
+    """
+    改写内容为小红书风格
+    
+    Args:
+        original_content: 原始内容
+        client: OpenAI客户端
+    
+    Returns:
+        改写后的内容，失败时返回None
+    """
+    # 读取提示词模板
+    with open("小红书改写.txt", "r", encoding="utf-8") as f:
+        system_prompt = f.read()
+    
+    def api_call():
+        completion = client.chat.completions.create(
+            model="deepseek/deepseek-r1-0528:free",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": original_content}
+            ],
+            temperature=0.8,
+            max_tokens=1500
+        )
+        return completion.choices[0].message.content
+    
+    return api_call_with_retry(api_call)
+```
+
+### 标题生成
+
+```python
+@handle_api_errors  
+def generate_title(content: str, client: OpenAI) -> Optional[str]:
+    """
+    基于内容生成小红书标题
+    
+    Args:
+        content: 正文内容
+        client: OpenAI客户端
+    
+    Returns:
+        生成的标题，失败时返回None
+    """
+    # 读取标题生成提示词
+    with open("小红书咪蒙标题生成.txt", "r", encoding="utf-8") as f:
+        system_prompt = f.read()
+    
+    def api_call():
+        completion = client.chat.completions.create(
+            model="deepseek/deepseek-r1-0528:free",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content}
+            ],
+            temperature=0.9,
+            max_tokens=200
+        )
+        return completion.choices[0].message.content.strip()
+    
+    return api_call_with_retry(api_call)
+```
+
+## 环境配置和安全
+
+### .env 文件配置
+
+```env
+# OpenRouter API配置
+OPENROUTER_API_KEY=your_api_key_here
+
+# 可选配置
+HTTP_REFERER=https://your-site.com
+X_TITLE=小红书内容处理工具
+```
+
+### API密钥安全
+
+- 永远不要将API密钥硬编码到源码中
+- 使用 `.env` 文件管理敏感信息
+- 将 `.env` 文件添加到 `.gitignore`
+- 定期轮换API密钥
+
+## 性能优化
+
+### 请求优化
+
+- 合理设置 `temperature` 和 `max_tokens` 参数
+- 使用流式响应处理长内容
+- 实现请求缓存机制避免重复调用
+- 批量处理时控制并发数量
+
+### 成本控制
+
+- 优先使用免费模型进行测试
+- 监控API使用量和成本
+- 实现内容长度限制
+- 缓存常用的API响应结果

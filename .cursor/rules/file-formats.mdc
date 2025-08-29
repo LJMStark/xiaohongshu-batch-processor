@@ -1,0 +1,177 @@
+---
+description: 文件格式和文档处理规则
+---
+
+# 文件格式和文档处理规则
+
+## 支持的文件格式
+
+### 图像格式
+- **输入格式**: JPG, JPEG, PNG, BMP, TIFF
+- **输出格式**: 统一为JPEG格式 (.jpg)
+- **处理要求**: 保持原始文件名，统一输出质量
+
+### 文档格式
+- **TXT**: UTF-8编码的纯文本文件
+- **DOCX**: Microsoft Word文档
+- **MD**: Markdown格式文档
+
+## 文档读取处理
+
+### TXT文件处理
+```python
+def read_txt_file(file_path: str) -> str:
+    """读取TXT文件，自动处理编码"""
+    encodings = ['utf-8', 'gbk', 'gb2312', 'big5']
+    for encoding in encodings:
+        try:
+            with open(file_path, 'r', encoding=encoding) as f:
+                return f.read()
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeDecodeError("无法识别文件编码")
+```
+
+### DOCX文件处理
+```python
+from docx import Document
+
+def read_docx_file(file_path: str) -> str:
+    """读取DOCX文件内容"""
+    doc = Document(file_path)
+    content = []
+    for paragraph in doc.paragraphs:
+        if paragraph.text.strip():
+            content.append(paragraph.text)
+    return '\n'.join(content)
+```
+
+### MD文件处理
+```python
+def read_md_file(file_path: str) -> str:
+    """读取Markdown文件"""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return f.read()
+```
+
+## 文件命名规范
+
+### 输入文件要求
+- 图片文件：数字命名 (0.jpg, 1.jpg, 2.jpg, ...)
+- 文档文件：固定命名 (`正文.txt`, `正文.docx`, `正文.md`)
+
+### 输出文件规范
+- 处理后图片：保持原始文件名
+- 改写后内容：保存为 `正文.md` 格式
+- 标题文件：保存为 `标题.txt` 或直接用作文件夹名
+
+## 中文文件名处理
+
+### 文件路径处理
+```python
+import os
+from pathlib import Path
+
+def safe_file_path(file_path: str) -> Path:
+    """安全处理包含中文的文件路径"""
+    return Path(file_path).resolve()
+
+def create_safe_filename(title: str) -> str:
+    """创建安全的文件名，移除特殊字符"""
+    invalid_chars = '<>:"/\\|?*'
+    for char in invalid_chars:
+        title = title.replace(char, '')
+    return title.strip()[:100]  # 限制长度
+```
+
+### 图像文件读写
+```python
+import cv2
+import numpy as np
+
+def read_image_chinese_path(image_path: str) -> np.ndarray:
+    """读取包含中文路径的图像文件"""
+    return cv2.imdecode(
+        np.fromfile(image_path, dtype=np.uint8), 
+        cv2.IMREAD_UNCHANGED
+    )
+
+def write_image_chinese_path(image_path: str, image: np.ndarray) -> bool:
+    """保存图像到包含中文的路径"""
+    is_success, buffer = cv2.imencode(".jpg", image)
+    if is_success:
+        with open(image_path, "wb") as f:
+            f.write(buffer)
+        return True
+    return False
+```
+
+## 文件结构验证
+
+### 输入文件夹验证
+```python
+def validate_input_folder(folder_path: str) -> dict:
+    """验证输入文件夹结构"""
+    folder = Path(folder_path)
+    result = {
+        'valid': False,
+        'images': [],
+        'document': None,
+        'errors': []
+    }
+    
+    if not folder.exists():
+        result['errors'].append('文件夹不存在')
+        return result
+    
+    # 查找图片文件
+    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
+    for file in folder.iterdir():
+        if file.suffix.lower() in image_extensions:
+            result['images'].append(str(file))
+    
+    # 查找文档文件
+    doc_files = []
+    for pattern in ['正文.txt', '正文.docx', '正文.md']:
+        doc_file = folder / pattern
+        if doc_file.exists():
+            doc_files.append(str(doc_file))
+    
+    if len(doc_files) > 1:
+        result['errors'].append('发现多个正文文件')
+    elif len(doc_files) == 1:
+        result['document'] = doc_files[0]
+    else:
+        result['errors'].append('未找到正文文件')
+    
+    if not result['images']:
+        result['errors'].append('未找到图片文件')
+    
+    result['valid'] = len(result['errors']) == 0
+    return result
+```
+
+## 输出文件管理
+
+### 创建输出目录
+```python
+def create_output_folder(title: str, base_path: str = ".") -> Path:
+    """基于标题创建输出文件夹"""
+    safe_title = create_safe_filename(title)
+    output_path = Path(base_path) / safe_title
+    
+    # 如果文件夹已存在，添加数字后缀
+    counter = 1
+    original_path = output_path
+    while output_path.exists():
+        output_path = Path(f"{original_path}_{counter}")
+        counter += 1
+    
+    output_path.mkdir(parents=True, exist_ok=True)
+    return output_path
+```
+
+### 文件备份策略
+- 处理前自动备份原始文件
+- 保留处理日志和错误记录
+- 支持断点续传，跳过已处理的文件夹
