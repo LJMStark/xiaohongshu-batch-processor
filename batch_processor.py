@@ -244,10 +244,17 @@ class BatchProcessor:
         self.output_folder_path = os.getenv("OUTPUT_FOLDER_PATH", "新生成文件")
         self.processed_folder_path = os.getenv("PROCESSED_FOLDER_PATH", "已处理文件")
         
+        # 加载延迟配置
+        try:
+            self.folder_delay_seconds = float(os.getenv("FOLDER_DELAY_SECONDS", "0.5"))
+        except (ValueError, TypeError):
+            self.folder_delay_seconds = 0.5
+            
         print(f"📁 配置路径:")
         print(f"   输入路径: {self.input_folder_path}")
         print(f"   输出路径: {self.output_folder_path}")
         print(f"   已处理路径: {self.processed_folder_path}")
+        print(f"⏱️ 处理延迟: {self.folder_delay_seconds}秒")
     
     def create_safe_filename(self, title: str) -> str:
         """创建安全的文件名，并清理前后标点符号"""
@@ -509,6 +516,11 @@ class BatchProcessor:
                 success_count += 1
             else:
                 print(f"⚠️ 跳过文件夹: {folder}")
+            
+            # 在处理文件夹之间添加延迟，避免频繁API调用
+            if i < total_count and self.folder_delay_seconds > 0:
+                print(f"⏳ 等待 {self.folder_delay_seconds} 秒后处理下一个文件夹...")
+                time.sleep(self.folder_delay_seconds)
         
         print(f"\n{'='*50}")
         print(f"🏁 批量处理完成!")
