@@ -1,0 +1,20 @@
+# OpenRouter API配置
+OPENROUTER_API_KEY=your_api_key_here
+
+# 可选配置
+HTTP_REFERER=https://your-site.com
+X_TITLE=小红书内容处理工具
+
+# 处理配置
+MAX_RETRIES=3
+DEFAULT_FILTER=natural
+BORDER_SIZE=20
+OUTPUT_FORMAT=jpg
+
+# 自定义路径配置
+# 需要遍历改写的文件夹路径 (默认为当前目录)
+INPUT_FOLDER_PATH=.
+# 改写完成后保存路径 (默认为 "新生成文件")
+OUTPUT_FOLDER_PATH=新生成文件
+# 已处理的文件夹移动的路径 (默认为 "已处理文件")
+PROCESSED_FOLDER_PATH=已处理文件

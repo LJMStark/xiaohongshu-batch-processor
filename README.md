@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 ## 配置API密钥
 
-1. `.env` 文件在项目根目录
+1. `.env` 文件在 `配置与提示词/` 目录
 
 ```env
 OPENROUTER_API_KEY=your_api_key_here
@@ -47,14 +47,22 @@ OPENROUTER_API_KEY=your_api_key_here
 pip install -r requirements.txt
 ```
 
-### 2. 配置API密钥
+### 2. 配置API密钥和路径
 
 ```bash
 # 复制环境配置模板
-cp env_example.txt .env
+cp 配置与提示词/env_example.txt 配置与提示词/.env
 
-# 编辑 .env 文件，设置你的 OPENROUTER_API_KEY
+# 编辑 配置与提示词/.env 文件，设置你的配置
 ```
+
+**必需配置**:
+- `OPENROUTER_API_KEY` - OpenRouter API密钥
+
+**可选路径配置**:
+- `INPUT_FOLDER_PATH` - 需要遍历改写的文件夹路径 (默认: `.` 当前目录)
+- `OUTPUT_FOLDER_PATH` - 改写完成后保存路径 (默认: `新生成文件`)
+- `PROCESSED_FOLDER_PATH` - 已处理的文件夹移动路径 (默认: `已处理文件`)
 
 ### 3. 准备数据
 确保你的根目录下有多个子文件夹，每个子文件夹包含：
@@ -125,6 +133,25 @@ python batch_processor.py
 - 检查文档文件编码是否为UTF-8
 - 确认文档格式是否支持
 - 验证文件权限是否正确
+
+## 项目结构
+
+```
+小绿书_副本/
+├── batch_processor.py          # 主批量处理程序
+├── requirements.txt            # Python依赖包
+├── README.md                   # 项目说明文档
+├── .cursor/rules/              # Cursor AI规则集
+├── 配置与提示词/               # 配置文件统一管理
+│   ├── .env                    # 环境配置文件
+│   ├── env_example.txt         # 环境配置模板
+│   ├── 小红书改写.txt          # 内容改写提示词
+│   ├── 小红书咪蒙标题生成.txt  # 标题生成提示词
+│   ├── 改图片.py               # 图片处理模块
+│   └── openrouter.py           # API集成示例
+├── 我的输出文件/               # 处理结果输出目录
+└── 我的已处理文件/             # 源文件夹存档目录
+```
 
 ## 开发信息
 

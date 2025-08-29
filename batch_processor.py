@@ -17,8 +17,8 @@ from docx import Document
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# 加载环境变量
-load_dotenv()
+# 加载环境变量 (从配置与提示词文件夹)
+load_dotenv("配置与提示词/.env")
 
 
 class ImageProcessor:
@@ -148,8 +148,8 @@ class AIContentGenerator:
         )
         
         # 加载提示词模板
-        self.rewrite_prompt = self._load_prompt("小红书改写.txt")
-        self.title_prompt = self._load_prompt("小红书咪蒙标题生成.txt")
+        self.rewrite_prompt = self._load_prompt("配置与提示词/小红书改写.txt")
+        self.title_prompt = self._load_prompt("配置与提示词/小红书咪蒙标题生成.txt")
     
     def _load_prompt(self, filename: str) -> str:
         """加载提示词模板"""
@@ -238,6 +238,16 @@ class BatchProcessor:
         # 支持的文件格式
         self.image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
         self.doc_extensions = {'.txt', '.docx', '.md'}
+        
+        # 加载自定义路径配置
+        self.input_folder_path = os.getenv("INPUT_FOLDER_PATH", ".")
+        self.output_folder_path = os.getenv("OUTPUT_FOLDER_PATH", "新生成文件")
+        self.processed_folder_path = os.getenv("PROCESSED_FOLDER_PATH", "已处理文件")
+        
+        print(f"📁 配置路径:")
+        print(f"   输入路径: {self.input_folder_path}")
+        print(f"   输出路径: {self.output_folder_path}")
+        print(f"   已处理路径: {self.processed_folder_path}")
     
     def create_safe_filename(self, title: str) -> str:
         """创建安全的文件名，并清理前后标点符号"""
@@ -341,10 +351,10 @@ class BatchProcessor:
             print(f"不支持的文档格式: {file_ext}")
             return None
     
-    def create_output_folder(self, title: str, base_path: str = ".") -> Path:
+    def create_output_folder(self, title: str) -> Path:
         """基于标题创建输出文件夹"""
-        # 创建"新生成文件"主文件夹
-        generated_dir = Path(base_path) / "新生成文件"
+        # 使用配置的输出路径
+        generated_dir = Path(self.output_folder_path)
         generated_dir.mkdir(exist_ok=True)
         
         safe_title = self.create_safe_filename(title)
@@ -360,11 +370,11 @@ class BatchProcessor:
         output_path.mkdir(parents=True, exist_ok=True)
         return output_path
     
-    def move_source_folder(self, source_folder: str, base_path: str = ".") -> bool:
+    def move_source_folder(self, source_folder: str) -> bool:
         """移动源文件夹到已处理文件目录"""
         try:
-            # 创建"已处理文件"主文件夹
-            processed_dir = Path(base_path) / "已处理文件"
+            # 使用配置的已处理文件路径
+            processed_dir = Path(self.processed_folder_path)
             processed_dir.mkdir(exist_ok=True)
             
             source_path = Path(source_folder)
@@ -469,10 +479,17 @@ class BatchProcessor:
         print("🚀 小红书内容批量处理程序启动")
         print("=" * 50)
         
-        # 获取当前目录下的所有子文件夹，排除特殊文件夹
-        current_dir = Path(".")
-        exclude_folders = {'.', '..', '__pycache__', '.cursor', '已处理文件', '新生成文件'}
-        subfolders = [f for f in current_dir.iterdir() 
+        # 使用配置的输入路径
+        input_dir = Path(self.input_folder_path)
+        if not input_dir.exists():
+            print(f"❌ 输入路径不存在: {input_dir}")
+            return
+        
+        # 获取输入目录下的所有子文件夹，排除特殊文件夹
+        exclude_folders = {'.', '..', '__pycache__', '.cursor', '配置与提示词',
+                          Path(self.processed_folder_path).name, 
+                          Path(self.output_folder_path).name}
+        subfolders = [f for f in input_dir.iterdir() 
                      if f.is_dir() and f.name not in exclude_folders and not f.name.startswith('.')]
         
         if not subfolders:
