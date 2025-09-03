@@ -147,6 +147,10 @@ class AIContentGenerator:
             api_key=api_key,
         )
         
+        # API调用间隔配置（防止限流）
+        self.api_call_interval = 2.0  # API调用之间的最小间隔（秒）
+        self.last_api_call_time = 0
+        
         # 加载提示词模板
         self.rewrite_prompt = self._load_prompt("配置与提示词/小红书改写.txt")
         self.title_prompt = self._load_prompt("配置与提示词/小红书咪蒙标题生成.txt")
@@ -160,11 +164,24 @@ class AIContentGenerator:
             print(f"加载提示词文件失败 {filename}: {e}")
             return ""
     
+    def _wait_for_api_interval(self):
+        """等待API调用间隔"""
+        current_time = time.time()
+        if current_time - self.last_api_call_time < self.api_call_interval:
+            wait_time = self.api_call_interval - (current_time - self.last_api_call_time)
+            if wait_time > 0:
+                time.sleep(wait_time)
+    
     def api_call_with_retry(self, api_func, max_retries: int = 3) -> Optional[str]:
         """带重试机制的API调用"""
         for attempt in range(max_retries):
             try:
+                # 等待API调用间隔
+                self._wait_for_api_interval()
+                
                 result = api_func()
+                self.last_api_call_time = time.time()
+                
                 if result and result.strip():
                     return result.strip()
                 else:
@@ -172,18 +189,34 @@ class AIContentGenerator:
                     if attempt == max_retries - 1:
                         return None
             except Exception as e:
-                if attempt == max_retries - 1:
-                    print(f"API调用最终失败: {e}")
-                    return None
+                error_str = str(e)
                 
-                # 指数退避
-                delay = min(2 ** attempt, 30)
-                jitter = random.uniform(0, delay * 0.1)
-                sleep_time = delay + jitter
-                
-                print(f"API调用失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-                print(f"等待 {sleep_time:.2f} 秒后重试...")
-                time.sleep(sleep_time)
+                # 检查是否为429限流错误
+                if "429" in error_str or "Rate limit exceeded" in error_str:
+                    # 429错误需要更长的等待时间
+                    if attempt == max_retries - 1:
+                        print(f"❌ API限流最终失败: {e}")
+                        print("💡 建议：等待1-2分钟后重试，或考虑使用付费API")
+                        return None
+                    
+                    # 对于429错误，使用更长的固定延迟
+                    delay = 60 + (attempt * 30)  # 第一次60秒，第二次90秒
+                    print(f"🚫 API限流 (尝试 {attempt + 1}/{max_retries}): {e}")
+                    print(f"⏳ 等待 {delay} 秒后重试...")
+                    time.sleep(delay)
+                else:
+                    # 其他错误使用指数退避
+                    if attempt == max_retries - 1:
+                        print(f"❌ API调用最终失败: {e}")
+                        return None
+                    
+                    delay = min(2 ** attempt, 30)
+                    jitter = random.uniform(0, delay * 0.1)
+                    sleep_time = delay + jitter
+                    
+                    print(f"API调用失败 (尝试 {attempt + 1}/{max_retries}): {e}")
+                    print(f"等待 {sleep_time:.2f} 秒后重试...")
+                    time.sleep(sleep_time)
         
         return None
     
@@ -246,9 +279,9 @@ class BatchProcessor:
         
         # 加载延迟配置
         try:
-            self.folder_delay_seconds = float(os.getenv("FOLDER_DELAY_SECONDS", "0.5"))
+            self.folder_delay_seconds = float(os.getenv("FOLDER_DELAY_SECONDS", "5.0"))
         except (ValueError, TypeError):
-            self.folder_delay_seconds = 0.5
+            self.folder_delay_seconds = 5.0
             
         print(f"📁 配置路径:")
         print(f"   输入路径: {self.input_folder_path}")
