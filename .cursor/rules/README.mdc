@@ -18,6 +18,7 @@ description: Cursor规则总览和使用指南
 
 ### 🤖 AI内容处理
 - [ai-content-generation.mdc](mdc:.cursor/rules/ai-content-generation.mdc) - AI内容生成和小红书风格处理
+- [ai-services-architecture.mdc](mdc:.cursor/rules/ai-services-architecture.mdc) - AI服务架构和多模型降级机制
 - [api-integration.mdc](mdc:.cursor/rules/api-integration.mdc) - API集成和错误处理
 
 ### 🖼️ 图像处理
@@ -26,13 +27,17 @@ description: Cursor规则总览和使用指南
 ### 📁 文件管理
 - [file-formats.mdc](mdc:.cursor/rules/file-formats.mdc) - 文件格式和文档处理规则
 
+### 🔄 批量处理
+- [batch-processing.mdc](mdc:.cursor/rules/batch-processing.mdc) - 批量处理工作流程和最佳实践
+
 ## 快速参考
 
 ### 主要功能模块
 1. **批量处理程序** - [batch_processor.py](mdc:batch_processor.py)
-2. **图像处理** - [改图片.py](mdc:改图片.py) 
-3. **API集成** - [openrouter.py](mdc:openrouter.py)
-4. **内容模板** - [小红书改写.txt](mdc:小红书改写.txt), [小红书咪蒙标题生成.txt](mdc:小红书咪蒙标题生成.txt)
+2. **AI服务模块** - [配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py)
+3. **图像处理** - [配置与提示词/改图片.py](mdc:配置与提示词/改图片.py) 
+4. **API集成** - [配置与提示词/openrouter.py](mdc:配置与提示词/openrouter.py)
+5. **内容模板** - [配置与提示词/小红书改写.txt](mdc:配置与提示词/小红书改写.txt), [配置与提示词/小红书咪蒙标题生成.txt](mdc:配置与提示词/小红书咪蒙标题生成.txt)
 
 ### 核心处理流程
 ```
@@ -43,9 +48,9 @@ description: Cursor规则总览和使用指南
 ```
 
 ### 关键配置
-- **环境变量**: `.env` 文件配置 `OPENROUTER_API_KEY`
+- **环境变量**: `配置与提示词/.env` 文件配置多个API密钥
 - **图像处理**: natural滤镜 + 19/20裁剪 + 白色边框
-- **API模型**: `deepseek/deepseek-r1-0528:free`
+- **AI模型**: 多模型降级机制（OpenRouter + DeepSeek + Kimi）
 - **输出格式**: JPEG图片 + Markdown文档
 
 ## 使用建议

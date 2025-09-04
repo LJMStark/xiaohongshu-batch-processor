@@ -1,0 +1,266 @@
+---
+description: AI服务架构和多模型降级机制
+---
+
+# AI服务架构
+
+基于[配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py)的统一AI服务接口设计。
+
+## 架构概览
+
+### 服务模块结构
+
+```python
+# 主要服务接口
+from 配置与提示词.ai_services import rewrite_content, generate_title
+
+# 内容改写服务 - 支持多模型降级
+rewritten_content = rewrite_content(original_text, prompt_template)
+
+# 标题生成服务 - 专用Kimi模型
+title = generate_title(content, title_prompt)
+```
+
+### 客户端配置
+
+```python
+# OpenRouter客户端（主要服务）
+openrouter_client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+)
+
+# SiliconFlow配置（备用服务）
+SILICONFLOW_API_URL = "https://api.siliconflow.cn/v1/chat/completions"
+SILICONFLOW_API_KEY = os.getenv("SILICONFLOW_API_KEY")
+
+# Moonshot客户端（标题生成）
+moonshot_client = OpenAI(
+    api_key=os.getenv("MOONSHOT_API_KEY"),
+    base_url="https://api.moonshot.cn/v1",
+)
+```
+
+## 内容改写服务
+
+### 多模型降级机制
+
+```python
+def rewrite_content(text, prompt_template):
+    """内容改写服务 - 自动降级机制"""
+    # 1. 尝试OpenRouter主要模型
+    try:
+        completion = openrouter_client.chat.completions.create(
+            model="deepseek/deepseek-r1-0528:free",
+            messages=[
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": text}
+            ]
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        # 2. 降级到DeepSeek备用模型
+        try:
+            payload = {
+                "model": "deepseek-ai/DeepSeek-V3.1",
+                "messages": [
+                    {"role": "system", "content": prompt_template},
+                    {"role": "user", "content": text}
+                ]
+            }
+            response = requests.post(SILICONFLOW_API_URL, json=payload, headers=headers)
+            return response.json()["choices"][0]["message"]["content"]
+        except Exception as e2:
+            raise Exception(f"Both models failed: {e}, {e2}")
+```
+
+### 模型配置
+
+| 服务 | 模型 | 用途 | 降级顺序 |
+|------|------|------|----------|
+| OpenRouter | `deepseek/deepseek-r1-0528:free` | 主要内容改写 | 1 |
+| SiliconFlow | `deepseek-ai/DeepSeek-V3.1` | 备用内容改写 | 2 |
+
+### 请求配置
+
+```python
+# OpenRouter请求配置
+completion = openrouter_client.chat.completions.create(
+    extra_headers={
+        "HTTP-Referer": "https://github.com/xiaohongshu-batch-processor",
+        "X-Title": "Xiaohongshu Batch Processor",
+    },
+    model="deepseek/deepseek-r1-0528:free",
+    messages=[...]
+)
+
+# SiliconFlow请求配置
+payload = {
+    "model": "deepseek-ai/DeepSeek-V3.1",
+    "messages": [...]
+}
+headers = {
+    "Authorization": f"Bearer {SILICONFLOW_API_KEY}",
+    "Content-Type": "application/json"
+}
+```
+
+## 标题生成服务
+
+### Kimi专用模型
+
+```python
+def generate_title(text, prompt_template):
+    """标题生成服务 - Kimi专用模型"""
+    try:
+        completion = moonshot_client.chat.completions.create(
+            model="kimi-k2-0711-preview",
+            messages=[
+                {"role": "system", "content": prompt_template},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.6,  # 平衡创意和准确性
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        raise Exception(f"Kimi title generation failed: {e}")
+```
+
+### 模型特性
+
+- **专用模型**：`kimi-k2-0711-preview`
+- **温度设置**：0.6（平衡创意和准确性）
+- **优化方向**：中文标题生成，咪蒙风格
+- **输出格式**：直接输出标题，无额外说明
+
+## 错误处理机制
+
+### 异常分类
+
+1. **网络错误**：连接超时、网络中断
+2. **API错误**：认证失败、配额超限
+3. **模型错误**：模型不可用、参数错误
+4. **响应错误**：空响应、格式错误
+
+### 错误处理策略
+
+```python
+def handle_api_error(primary_func, fallback_func, *args, **kwargs):
+    """统一的错误处理策略"""
+    try:
+        return primary_func(*args, **kwargs)
+    except Exception as e:
+        print(f"Primary service failed: {e}")
+        print("Trying fallback service...")
+        try:
+            return fallback_func(*args, **kwargs)
+        except Exception as e2:
+            raise Exception(f"Both services failed: {e}, {e2}")
+```
+
+### 重试机制
+
+- **指数退避**：失败后等待时间递增
+- **最大重试**：限制重试次数避免无限循环
+- **错误日志**：记录详细错误信息便于调试
+
+## 环境配置
+
+### 必需的环境变量
+
+```env
+# 主要API服务
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# 备用API服务
+SILICONFLOW_API_KEY=your_siliconflow_api_key
+
+# 标题生成服务
+MOONSHOT_API_KEY=your_moonshot_api_key
+```
+
+### 配置验证
+
+```python
+def validate_api_keys():
+    """验证API密钥配置"""
+    required_keys = [
+        "OPENROUTER_API_KEY",
+        "SILICONFLOW_API_KEY", 
+        "MOONSHOT_API_KEY"
+    ]
+    
+    missing_keys = []
+    for key in required_keys:
+        if not os.getenv(key):
+            missing_keys.append(key)
+    
+    if missing_keys:
+        raise ValueError(f"Missing API keys: {', '.join(missing_keys)}")
+```
+
+## 性能优化
+
+### 请求优化
+
+1. **连接复用**：使用客户端连接池
+2. **请求批处理**：合并多个请求
+3. **缓存机制**：缓存常用响应
+4. **超时控制**：设置合理的超时时间
+
+### 成本控制
+
+1. **模型选择**：优先使用免费模型
+2. **请求限制**：控制请求频率
+3. **内容长度**：限制输入输出长度
+4. **使用监控**：跟踪API使用量
+
+## 扩展性设计
+
+### 添加新模型
+
+```python
+def add_new_model(model_config):
+    """添加新的AI模型支持"""
+    # 1. 添加新的客户端配置
+    # 2. 实现新的API调用函数
+    # 3. 更新降级机制
+    # 4. 添加错误处理
+```
+
+### 自定义降级策略
+
+```python
+def custom_fallback_strategy(models, text, prompt):
+    """自定义降级策略"""
+    for model in models:
+        try:
+            return call_model(model, text, prompt)
+        except Exception as e:
+            print(f"Model {model} failed: {e}")
+            continue
+    raise Exception("All models failed")
+```
+
+## 最佳实践
+
+### 服务调用
+
+1. **统一接口**：使用统一的函数接口
+2. **错误处理**：始终处理可能的异常
+3. **日志记录**：记录关键操作和错误
+4. **性能监控**：监控响应时间和成功率
+
+### 配置管理
+
+1. **环境变量**：使用环境变量管理配置
+2. **配置验证**：启动时验证配置完整性
+3. **密钥安全**：保护API密钥安全
+4. **版本控制**：记录配置变更历史
+
+### 测试策略
+
+1. **单元测试**：测试各个服务函数
+2. **集成测试**：测试完整的降级流程
+3. **压力测试**：测试高并发场景
+4. **错误测试**：测试各种错误情况

@@ -8,7 +8,8 @@
 - 📝 **内容改写**: 使用AI将原始内容改写成小红书风格
 - 🏷️ **标题生成**: 基于改写后的内容生成吸引人的标题
 - 🔄 **批量处理**: 自动处理所有子文件夹
-- ⚡ **错误重试**: 失败时自动重试，最多3次
+- ⚡ **多模型降级**: AI服务自动降级机制，提高稳定性
+- 🔁 **错误重试**: 失败时自动重试，最多3次
 - 📊 **进度显示**: 实时显示处理进度和状态
 
 ## 文件结构要求
@@ -36,7 +37,14 @@ pip install -r requirements.txt
 1. `.env` 文件在 `配置与提示词/` 目录
 
 ```env
-OPENROUTER_API_KEY=your_api_key_here
+# 主要API服务
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# 备用API服务
+SILICONFLOW_API_KEY=your_siliconflow_api_key
+
+# 标题生成服务
+MOONSHOT_API_KEY=your_moonshot_api_key
 ```
 
 ## 快速开始
@@ -57,7 +65,9 @@ cp 配置与提示词/env_example.txt 配置与提示词/.env
 ```
 
 **必需配置**:
-- `OPENROUTER_API_KEY` - OpenRouter API密钥
+- `OPENROUTER_API_KEY` - OpenRouter API密钥（主要内容改写）
+- `SILICONFLOW_API_KEY` - SiliconFlow API密钥（DeepSeek备用模型）
+- `MOONSHOT_API_KEY` - Moonshot API密钥（Kimi标题生成）
 
 **可选路径配置**:
 - `INPUT_FOLDER_PATH` - 需要遍历改写的文件夹路径 (默认: `.` 当前目录)
@@ -88,7 +98,10 @@ python batch_processor.py
    - 裁剪底部19/20部分
    - 添加白色边框
 3. **内容改写**: 使用AI将原始内容改写成小红书风格
+   - 主要模型：OpenRouter + DeepSeek-R1-0528
+   - 备用模型：SiliconFlow + DeepSeek-V3.1（自动降级）
 4. **标题生成**: 基于改写后的内容生成吸引人的标题
+   - 专用模型：Moonshot + Kimi-K2-0711-Preview
 5. **输出保存**: 创建新文件夹并保存所有处理结果
 
 ## 错误处理
@@ -137,26 +150,29 @@ python batch_processor.py
 ## 项目结构
 
 ```
-小绿书_副本/
+xiaohongshu-batch-processor/
 ├── batch_processor.py          # 主批量处理程序
 ├── requirements.txt            # Python依赖包
 ├── README.md                   # 项目说明文档
+├── CLAUDE.md                   # Claude开发指南
 ├── .cursor/rules/              # Cursor AI规则集
 ├── 配置与提示词/               # 配置文件统一管理
 │   ├── .env                    # 环境配置文件
 │   ├── env_example.txt         # 环境配置模板
+│   ├── ai_services.py          # AI服务集成模块（多模型降级）
 │   ├── 小红书改写.txt          # 内容改写提示词
 │   ├── 小红书咪蒙标题生成.txt  # 标题生成提示词
 │   ├── 改图片.py               # 图片处理模块
 │   └── openrouter.py           # API集成示例
-├── 我的输出文件/               # 处理结果输出目录
-└── 我的已处理文件/             # 源文件夹存档目录
+├── 新生成文件/                 # 处理结果输出目录
+└── 已处理文件/                 # 源文件夹存档目录
 ```
 
 ## 开发信息
 
 - Python版本: 3.7+
-- 主要依赖: OpenCV, NumPy, Requests, python-dotenv
+- 主要依赖: OpenCV, NumPy, Requests, python-dotenv, openai
+- AI服务: OpenRouter, SiliconFlow, Moonshot
 - 开发环境: macOS, Windows, Linux
 
 ## 许可证

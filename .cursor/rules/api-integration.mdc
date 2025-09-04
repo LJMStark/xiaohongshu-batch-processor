@@ -4,9 +4,48 @@ description: API集成和错误处理规则
 
 # API集成和错误处理规则
 
+## 多模型AI服务架构
+
+基于[配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py)的统一AI服务接口。
+
+### 服务架构概览
+
+```python
+# 统一的AI服务接口
+from 配置与提示词.ai_services import rewrite_content, generate_title
+
+# 内容改写 - 自动降级机制
+rewritten_content = rewrite_content(original_text, prompt_template)
+
+# 标题生成 - 专用Kimi模型
+title = generate_title(content, title_prompt)
+```
+
+### 多模型配置
+
+#### 内容改写服务
+- **主要模型**：OpenRouter + DeepSeek-R1-0528
+- **备用模型**：SiliconFlow + DeepSeek-V3.1
+- **降级策略**：主模型失败时自动切换
+
+#### 标题生成服务
+- **专用模型**：Moonshot + Kimi-K2-0711-Preview
+- **温度设置**：0.6（平衡创意和准确性）
+
+### 环境变量配置
+
+```env
+# 主要API服务
+OPENROUTER_API_KEY=your_openrouter_api_key
+
+# 备用API服务
+SILICONFLOW_API_KEY=your_siliconflow_api_key
+MOONSHOT_API_KEY=your_moonshot_api_key
+```
+
 ## OpenRouter API集成
 
-基于[openrouter.py](mdc:openrouter.py)的API集成规范。
+基于[配置与提示词/openrouter.py](mdc:配置与提示词/openrouter.py)的API集成规范。
 
 ### 基础配置
 

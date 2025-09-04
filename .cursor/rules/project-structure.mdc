@@ -9,12 +9,13 @@ description: 小红书内容批量处理项目结构指南
 
 ## 核心文件说明
 
-- [batch_processor.py](mdc:batch_processor.py) - 主批量处理程序（当前为空，需要实现）
-- [改图片.py](mdc:改图片.py) - 图片处理模块，包含滤镜、裁剪、边框功能
-- [openrouter.py](mdc:openrouter.py) - OpenRouter API集成示例代码
+- [batch_processor.py](mdc:batch_processor.py) - 主批量处理程序，包含完整的处理流程
+- [配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py) - AI服务集成模块，支持多模型降级
+- [配置与提示词/改图片.py](mdc:配置与提示词/改图片.py) - 图片处理模块，包含滤镜、裁剪、边框功能
+- [配置与提示词/openrouter.py](mdc:配置与提示词/openrouter.py) - OpenRouter API集成示例代码
 - [README.md](mdc:README.md) - 项目文档和使用说明
-- [小红书改写.txt](mdc:小红书改写.txt) - 小红书内容改写提示词模板
-- [小红书咪蒙标题生成.txt](mdc:小红书咪蒙标题生成.txt) - 标题生成提示词模板
+- [配置与提示词/小红书改写.txt](mdc:配置与提示词/小红书改写.txt) - 小红书内容改写提示词模板
+- [配置与提示词/小红书咪蒙标题生成.txt](mdc:配置与提示词/小红书咪蒙标题生成.txt) - 标题生成提示词模板
 
 ## 数据结构要求
 
@@ -40,6 +41,23 @@ description: 小红书内容批量处理项目结构指南
 
 ## 环境配置
 
-- 需要 `.env` 文件配置 `OPENROUTER_API_KEY`
+- 需要 `配置与提示词/.env` 文件配置API密钥：
+  - `OPENROUTER_API_KEY` - OpenRouter API密钥
+  - `SILICONFLOW_API_KEY` - SiliconFlow API密钥（DeepSeek备用）
+  - `MOONSHOT_API_KEY` - Moonshot API密钥（Kimi标题生成）
 - Python 3.7+ 环境
-- 依赖: OpenCV, NumPy, Requests, python-dotenv
+- 依赖: OpenCV, NumPy, Requests, python-dotenv, openai
+
+## AI服务架构
+
+### 多模型降级机制
+1. **内容改写**：
+   - 主要：OpenRouter + DeepSeek-R1-0528
+   - 备用：SiliconFlow + DeepSeek-V3.1
+2. **标题生成**：
+   - 专用：Moonshot + Kimi-K2-0711-Preview
+
+### 服务模块
+- [配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py) 提供统一的AI服务接口
+- 自动降级和错误处理
+- 支持重试机制和限流控制

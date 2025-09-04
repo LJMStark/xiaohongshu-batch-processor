@@ -29,27 +29,40 @@ cp 配置与提示词/env_example.txt 配置与提示词/.env
 ### 主要类结构
 - `ImageProcessor`: 图像处理类，负责滤镜、裁剪、边框等操作
 - `DocumentReader`: 文档读取类，支持TXT、DOCX、MD格式
-- `AIContentGenerator`: AI内容生成类，处理OpenRouter API调用
 - `BatchProcessor`: 批量处理器主类，协调整个处理流程
+
+### AI服务架构
+- `配置与提示词/ai_services.py`: 统一AI服务接口，支持多模型降级
+  - `rewrite_content()`: 内容改写服务（OpenRouter → DeepSeek降级）
+  - `generate_title()`: 标题生成服务（Kimi专用模型）
 
 ### 处理流程
 1. 扫描输入目录下的子文件夹
 2. 验证每个文件夹的结构（图片+文档）
 3. 图片处理：应用natural滤镜 → 裁剪底部19/20 → 添加白色边框
 4. 文档读取：支持多种编码格式自动识别
-5. AI改写：使用DeepSeek模型改写内容为小红书风格
+5. AI改写：使用多模型降级机制改写内容为小红书风格
+   - 主要模型：OpenRouter + DeepSeek-R1-0528
+   - 备用模型：SiliconFlow + DeepSeek-V3.1（自动降级）
 6. 标题生成：使用Kimi模型生成吸引人的标题
+   - 专用模型：Moonshot + Kimi-K2-0711-Preview
 7. 输出保存：创建新文件夹保存处理结果
 
 ## 配置管理
 
 ### 环境变量配置
 所有配置在 `配置与提示词/.env` 文件中管理：
-- `OPENROUTER_API_KEY`: OpenRouter API密钥（必需）
+
+**必需API配置**：
+- `OPENROUTER_API_KEY`: OpenRouter API密钥（主要内容改写）
+- `SILICONFLOW_API_KEY`: SiliconFlow API密钥（DeepSeek备用模型）
+- `MOONSHOT_API_KEY`: Moonshot API密钥（Kimi标题生成）
+
+**可选路径配置**：
 - `INPUT_FOLDER_PATH`: 输入文件夹路径（默认：当前目录）
 - `OUTPUT_FOLDER_PATH`: 输出文件夹路径（默认：新生成文件）
 - `PROCESSED_FOLDER_PATH`: 已处理文件路径（默认：已处理文件）
-- `FOLDER_DELAY_SECONDS`: 文件夹处理间隔（默认：0.5秒）
+- `FOLDER_DELAY_SECONDS`: 文件夹处理间隔（默认：5.0秒）
 
 ### 提示词模板
 - `配置与提示词/小红书改写.txt`: 内容改写提示词
@@ -91,9 +104,11 @@ cp 配置与提示词/env_example.txt 配置与提示词/.env
 - 自动编码检测（UTF-8, GBK, GB2312, BIG5）
 
 ### API集成
-- OpenRouter API，使用deepseek-r1和kimi-k2模型
-- 错误处理装饰器
-- 请求参数优化（temperature, max_tokens）
+- **多模型架构**：OpenRouter + SiliconFlow + Moonshot
+- **自动降级机制**：主模型失败时自动切换到备用模型
+- **统一服务接口**：通过`ai_services.py`提供一致的调用方式
+- **错误处理**：完整的异常处理和重试机制
+- **请求优化**：合理的temperature和max_tokens参数设置
 
 ## 输出结构
 

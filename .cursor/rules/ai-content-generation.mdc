@@ -44,29 +44,50 @@ description: AI内容生成和小红书风格处理规则
 - 直接输出标题，前后不带引导语
 - 基于正文内容生成，确保相关性
 
-## API调用规范
+## AI服务架构
 
-参考[openrouter.py](mdc:openrouter.py)进行API集成：
+基于[配置与提示词/ai_services.py](mdc:配置与提示词/ai_services.py)的多模型降级架构：
 
-### OpenRouter API配置
+### 内容改写服务
 ```python
-from openai import OpenAI
+from 配置与提示词.ai_services import rewrite_content
 
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY"),
-)
+# 自动降级：OpenRouter → DeepSeek-V3.1
+rewritten_content = rewrite_content(original_text, prompt_template)
 ```
 
-### 推荐模型
-- `deepseek/deepseek-r1-0528:free` - 免费模型，适合测试
-- 根据需要选择其他高质量模型
+**模型配置**：
+- **主要模型**：OpenRouter + `deepseek/deepseek-r1-0528:free`
+- **备用模型**：SiliconFlow + `deepseek-ai/DeepSeek-V3.1`
+- **降级机制**：主模型失败时自动切换到备用模型
+
+### 标题生成服务
+```python
+from 配置与提示词.ai_services import generate_title
+
+# 专用Kimi模型
+title = generate_title(content, title_prompt)
+```
+
+**模型配置**：
+- **专用模型**：Moonshot + `kimi-k2-0711-preview`
+- **温度设置**：0.6（平衡创意和准确性）
+
+### 环境配置要求
+```env
+# 主要API
+OPENROUTER_API_KEY=your_openrouter_key
+
+# 备用API
+SILICONFLOW_API_KEY=your_siliconflow_key
+MOONSHOT_API_KEY=your_moonshot_key
+```
 
 ### 调用最佳实践
-- 使用环境变量管理API密钥
-- 添加适当的HTTP头信息
-- 实现重试机制和错误处理
-- 控制请求频率避免限流
+- 使用统一的AI服务接口
+- 自动错误处理和重试机制
+- 支持多模型降级提高稳定性
+- 环境变量管理API密钥
 
 ## 内容质量控制
 

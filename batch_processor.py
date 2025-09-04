@@ -14,11 +14,13 @@ from typing import Optional, List, Dict, Any
 import cv2
 import numpy as np
 from docx import Document
-from openai import OpenAI
 from dotenv import load_dotenv
 
 # 加载环境变量 (从配置与提示词文件夹)
 load_dotenv("配置与提示词/.env")
+
+# 导入AI服务
+from 配置与提示词.ai_services import rewrite_content, generate_title
 
 
 class ImageProcessor:
@@ -133,130 +135,14 @@ class DocumentReader:
             return None
 
 
-class AIContentGenerator:
-    """AI内容生成类"""
-    
-    def __init__(self):
-        """初始化AI客户端"""
-        api_key = os.getenv("OPENROUTER_API_KEY")
-        if not api_key:
-            raise ValueError("请在.env文件中设置OPENROUTER_API_KEY")
-        
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-        )
-        
-        # API调用间隔配置（防止限流）
-        self.api_call_interval = 2.0  # API调用之间的最小间隔（秒）
-        self.last_api_call_time = 0
-        
-        # 加载提示词模板
-        self.rewrite_prompt = self._load_prompt("配置与提示词/小红书改写.txt")
-        self.title_prompt = self._load_prompt("配置与提示词/小红书咪蒙标题生成.txt")
-    
-    def _load_prompt(self, filename: str) -> str:
-        """加载提示词模板"""
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception as e:
-            print(f"加载提示词文件失败 {filename}: {e}")
-            return ""
-    
-    def _wait_for_api_interval(self):
-        """等待API调用间隔"""
-        current_time = time.time()
-        if current_time - self.last_api_call_time < self.api_call_interval:
-            wait_time = self.api_call_interval - (current_time - self.last_api_call_time)
-            if wait_time > 0:
-                time.sleep(wait_time)
-    
-    def api_call_with_retry(self, api_func, max_retries: int = 3) -> Optional[str]:
-        """带重试机制的API调用"""
-        for attempt in range(max_retries):
-            try:
-                # 等待API调用间隔
-                self._wait_for_api_interval()
-                
-                result = api_func()
-                self.last_api_call_time = time.time()
-                
-                if result and result.strip():
-                    return result.strip()
-                else:
-                    print(f"API返回空内容 (尝试 {attempt + 1}/{max_retries})")
-                    if attempt == max_retries - 1:
-                        return None
-            except Exception as e:
-                error_str = str(e)
-                
-                # 检查是否为429限流错误
-                if "429" in error_str or "Rate limit exceeded" in error_str:
-                    # 429错误需要更长的等待时间
-                    if attempt == max_retries - 1:
-                        print(f"❌ API限流最终失败: {e}")
-                        print("💡 建议：等待1-2分钟后重试，或考虑使用付费API")
-                        return None
-                    
-                    # 对于429错误，使用更长的固定延迟
-                    delay = 60 + (attempt * 30)  # 第一次60秒，第二次90秒
-                    print(f"🚫 API限流 (尝试 {attempt + 1}/{max_retries}): {e}")
-                    print(f"⏳ 等待 {delay} 秒后重试...")
-                    time.sleep(delay)
-                else:
-                    # 其他错误使用指数退避
-                    if attempt == max_retries - 1:
-                        print(f"❌ API调用最终失败: {e}")
-                        return None
-                    
-                    delay = min(2 ** attempt, 30)
-                    jitter = random.uniform(0, delay * 0.1)
-                    sleep_time = delay + jitter
-                    
-                    print(f"API调用失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-                    print(f"等待 {sleep_time:.2f} 秒后重试...")
-                    time.sleep(sleep_time)
-        
-        return None
-    
-    def rewrite_content(self, original_content: str) -> Optional[str]:
-        """改写内容为小红书风格"""
-        if not self.rewrite_prompt:
-            print("小红书改写提示词未加载")
-            return None
-        
-        def api_call():
-            completion = self.client.chat.completions.create(
-                model="deepseek/deepseek-r1-0528:free",                messages=[
-                    {"role": "system", "content": self.rewrite_prompt},
-                    {"role": "user", "content": original_content}
-                ],
-                temperature=0.8,
-                max_tokens=8000
-            )
-            return completion.choices[0].message.content
-        
-        return self.api_call_with_retry(api_call)
-    
-    def generate_title(self, content: str) -> Optional[str]:
-        """基于内容生成小红书标题"""
-        if not self.title_prompt:
-            print("标题生成提示词未加载")
-            return None
-        
-        def api_call():
-            completion = self.client.chat.completions.create(
-                model="moonshotai/kimi-k2:free",
-                messages=[
-                    {"role": "user", "content": f"{self.title_prompt}\n\n正文内容：{content}"}
-                ],
-                temperature=0.9,
-                max_tokens=200
-            )
-            return completion.choices[0].message.content
-        
-        return self.api_call_with_retry(api_call)
+def load_prompt_template(filename: str) -> str:
+    """加载提示词模板"""
+    try:
+        with open(filename, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        print(f"加载提示词文件失败 {filename}: {e}")
+        return ""
 
 
 class BatchProcessor:
@@ -266,11 +152,14 @@ class BatchProcessor:
         """初始化批量处理器"""
         self.image_processor = ImageProcessor()
         self.document_reader = DocumentReader()
-        self.ai_generator = AIContentGenerator()
         
         # 支持的文件格式
         self.image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
         self.doc_extensions = {'.txt', '.docx', '.md'}
+        
+        # 加载提示词模板
+        self.rewrite_prompt = load_prompt_template("配置与提示词/小红书改写.txt")
+        self.title_prompt = load_prompt_template("配置与提示词/小红书咪蒙标题生成.txt")
         
         # 加载自定义路径配置
         self.input_folder_path = os.getenv("INPUT_FOLDER_PATH", ".")
@@ -459,7 +348,7 @@ class BatchProcessor:
                 
                 # AI改写内容
                 print("🤖 AI改写内容中...")
-                rewritten_content = self.ai_generator.rewrite_content(original_content)
+                rewritten_content = rewrite_content(original_content, self.rewrite_prompt)
                 if not rewritten_content:
                     raise Exception("内容改写失败")
                 
@@ -467,7 +356,7 @@ class BatchProcessor:
                 
                 # 生成标题
                 print("🎯 生成标题中...")
-                title = self.ai_generator.generate_title(rewritten_content)
+                title = generate_title(rewritten_content, self.title_prompt)
                 if not title:
                     raise Exception("标题生成失败")
                 

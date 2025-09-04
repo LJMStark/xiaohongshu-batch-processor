@@ -1,0 +1,190 @@
+---
+description: 批量处理工作流程和最佳实践
+---
+
+# 批量处理工作流程
+
+基于[batch_processor.py](mdc:batch_processor.py)的完整批量处理系统。
+
+## 核心处理流程
+
+### 1. 文件夹验证 (`validate_input_folder`)
+
+```python
+def validate_input_folder(folder_path: str) -> Dict[str, Any]:
+    """验证输入文件夹结构"""
+    result = {
+        'valid': False,
+        'images': [],
+        'document': None,
+        'errors': []
+    }
+```
+
+**验证要求**：
+- 必须包含至少一张图片文件
+- 必须包含一个正文文档（`正文.txt`、`正文.docx`、`正文.md`）
+- 支持的图片格式：`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`
+- 支持的文档格式：`.txt`, `.docx`, `.md`
+
+### 2. 图像处理流程 (`process_images`)
+
+```python
+def process_images(image_paths: List[str], output_dir: Path) -> int:
+    """处理图片文件"""
+```
+
+**处理步骤**：
+1. 读取图片（支持中文路径）
+2. 应用natural滤镜
+3. 裁剪底部（保留19/20）
+4. 添加白色边框（20像素）
+5. 保存为JPEG格式
+
+### 3. AI内容处理
+
+```python
+# 内容改写 - 多模型降级
+rewritten_content = rewrite_content(original_content, self.rewrite_prompt)
+
+# 标题生成 - Kimi专用模型
+title = generate_title(rewritten_content, self.title_prompt)
+```
+
+**AI服务特性**：
+- 自动降级机制（OpenRouter → DeepSeek-V3.1）
+- 错误处理和重试
+- 专用标题生成模型
+
+### 4. 输出管理
+
+```python
+def create_output_folder(title: str) -> Path:
+    """基于标题创建输出文件夹"""
+```
+
+**输出结构**：
+```
+输出文件夹/
+├── 处理后的图片文件
+├── 正文.md (改写后的内容)
+└── 标题.txt (生成的标题)
+```
+
+## 错误处理和重试机制
+
+### 文件夹级重试 (`process_folder_with_retry`)
+
+```python
+def process_folder_with_retry(folder_path: str, max_retries: int = 3) -> bool:
+    """带重试机制的文件夹处理"""
+```
+
+**重试策略**：
+- 最多重试3次
+- 文件夹结构问题不重试
+- API调用失败会重试
+- 图片处理失败会重试
+
+### 错误分类处理
+
+1. **结构错误**：文件夹结构不符合要求，不重试
+2. **API错误**：AI服务调用失败，自动重试
+3. **文件错误**：图片或文档处理失败，重试
+4. **系统错误**：权限、磁盘空间等，重试
+
+## 配置管理
+
+### 环境变量配置
+
+```env
+# 路径配置
+INPUT_FOLDER_PATH=.
+OUTPUT_FOLDER_PATH=新生成文件
+PROCESSED_FOLDER_PATH=已处理文件
+
+# 处理延迟（秒）
+FOLDER_DELAY_SECONDS=5.0
+```
+
+### 文件路径处理
+
+- 支持中文路径和文件名
+- 自动创建输出目录
+- 安全的文件名处理（清理非法字符）
+- 避免文件名冲突（添加数字后缀）
+
+## 性能优化
+
+### 批量处理策略
+
+1. **顺序处理**：逐个处理文件夹，避免资源竞争
+2. **延迟控制**：文件夹间添加延迟，避免API限流
+3. **进度显示**：实时显示处理进度和状态
+4. **错误隔离**：单个文件夹失败不影响其他处理
+
+### 内存管理
+
+- 及时释放图像数组
+- 使用生成器处理大文件列表
+- 避免同时加载多个大图像
+
+## 使用示例
+
+### 基本使用
+
+```python
+from batch_processor import BatchProcessor
+
+# 创建处理器实例
+processor = BatchProcessor()
+
+# 运行批量处理
+processor.run()
+```
+
+### 自定义配置
+
+```python
+# 设置环境变量
+os.environ["INPUT_FOLDER_PATH"] = "/path/to/input"
+os.environ["OUTPUT_FOLDER_PATH"] = "/path/to/output"
+os.environ["FOLDER_DELAY_SECONDS"] = "3.0"
+
+processor = BatchProcessor()
+processor.run()
+```
+
+## 最佳实践
+
+### 输入准备
+
+1. **文件夹结构**：确保每个子文件夹包含图片和正文文档
+2. **文件命名**：正文文档命名为`正文.txt`、`正文.docx`或`正文.md`
+3. **内容质量**：确保正文内容完整且符合改写要求
+
+### 输出管理
+
+1. **定期清理**：定期清理输出文件夹避免磁盘空间不足
+2. **备份重要**：重要内容及时备份
+3. **质量检查**：处理完成后检查生成内容质量
+
+### 错误处理
+
+1. **日志记录**：关注控制台输出的错误信息
+2. **重试策略**：对于API错误，等待后手动重试
+3. **问题排查**：根据错误信息定位具体问题
+
+## 扩展功能
+
+### 自定义处理流程
+
+- 可以扩展`ImageProcessor`类添加新的滤镜
+- 可以修改AI服务配置使用不同模型
+- 可以自定义输出格式和文件结构
+
+### 集成其他服务
+
+- 可以集成其他AI服务提供商
+- 可以添加内容审核和过滤功能
+- 可以集成自动化发布功能
